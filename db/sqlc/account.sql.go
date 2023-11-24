@@ -16,12 +16,12 @@ INSERT INTO accounts (
   currency
 ) VALUES (
   $1, $2, $3
-)RETURNING id, owner, balance, currency, created_at
+) RETURNING id, owner, balance, currency, created_at
 `
 
 type CreateAccountParams struct {
 	Owner    string `json:"owner"`
-	Balance  string `json:"balance"`
+	Balance  int64  `json:"balance"`
 	Currency string `json:"currency"`
 }
 
@@ -39,7 +39,8 @@ func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (A
 }
 
 const deleteAccount = `-- name: DeleteAccount :exec
-DELETE FROM accounts WHERE id = $1
+DELETE FROM accounts
+WHERE id = $1
 `
 
 func (q *Queries) DeleteAccount(ctx context.Context, id int64) error {
@@ -108,14 +109,14 @@ func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]A
 
 const updateAccount = `-- name: UpdateAccount :one
 UPDATE accounts
-  set balance = $2
+SET balance = $2
 WHERE id = $1
 RETURNING id, owner, balance, currency, created_at
 `
 
 type UpdateAccountParams struct {
-	ID      int64  `json:"id"`
-	Balance string `json:"balance"`
+	ID      int64 `json:"id"`
+	Balance int64 `json:"balance"`
 }
 
 func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error) {
