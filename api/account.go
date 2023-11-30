@@ -7,6 +7,7 @@ import (
 
 	db "github.com/Evans-Prah/simplebank/db/sqlc"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/lib/pq"
 )
 
@@ -20,7 +21,8 @@ func (server *Server) createAccount(ctx *gin.Context)  {
 	var payload createAccountPayload
 	err := ctx.ShouldBindJSON(&payload)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		validationErrors := formatValidationErrors(err.(validator.ValidationErrors))
+		ctx.JSON(http.StatusBadRequest, ApiResponseFunc(http.StatusBadRequest, "Invalid input", nil, validationErrors))
 		return
 	}
 
@@ -121,7 +123,8 @@ func (server *Server) updateAccount(ctx *gin.Context) {
 	var req UpdateAccountRequest
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, ApiResponseFunc(http.StatusBadRequest, "Invalid request body", nil))
+		validationErrors := formatValidationErrors(err.(validator.ValidationErrors))
+		ctx.JSON(http.StatusBadRequest, ApiResponseFunc(http.StatusBadRequest, "Invalid payload", nil, validationErrors))
 		return
 	}
 

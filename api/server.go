@@ -20,6 +20,8 @@ func NewServer(store db.Store) *Server {
 
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		v.RegisterValidation("currency", validCurrency)
+		v.RegisterValidation("customUsername", validateCustomUsername)
+
 	}
 
 	router.POST("/api/accounts", server.createAccount)
@@ -27,7 +29,10 @@ func NewServer(store db.Store) *Server {
 	router.GET("/api/accounts", server.getAccounts)
 	router.PATCH("/api/accounts/:id", server.updateAccount)
 	router.DELETE("/api/accounts/:id", server.deleteAccount)
+
 	router.POST("/api/transfers", server.createTransfer)
+
+	router.POST("/api/users", server.createUser)
 
 	server.router = router
 	return server
