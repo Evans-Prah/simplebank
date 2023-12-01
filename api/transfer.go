@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	db "github.com/Evans-Prah/simplebank/db/sqlc"
+	"github.com/Evans-Prah/simplebank/token"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,11 +26,19 @@ func (server *Server) createTransfer(ctx *gin.Context)  {
 		return
 	}
 
-	if !server.validAccount(ctx, payload.FromAccountID, payload.Currency){
+	fromAccount, valid := server.validAccount(ctx, payload.FromAccountID, payload.Currency)
+	if !valid{
 		return
 	}
 
-	if !server.validAccount(ctx, payload.ToAccountID, payload.Currency){
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.TokenPayload)
+	if fromAccount.Owner != authPayload.Username {
+		ctx.JSON(http.StatusForbidden, ApiResponseFunc(http.StatusForbidden, "Account does not belong to authenticated user", nil))
+		return
+	}
+
+	_, valid = server.validAccount(ctx, payload.FromAccountID, payload.Currency)
+	if !valid{
 		return
 	}
 
@@ -57,23 +66,23 @@ func (server *Server) createTransfer(ctx *gin.Context)  {
 }
 
 
-func (server *Server) validAccount(ctx *gin.Context, accountID int64, currency string) bool {
+func (server *Server) validAccount(ctx *gin.Context, accountID int64, currency string) (db.Account, bool) {
 	account, err := server.store.GetAccount(ctx, accountID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, ApiResponseFunc(http.StatusNotFound, "Unable to fetch details of account, check and try again", nil))
-			return false
+			return account, false
 		}
 		ctx.JSON(http.StatusFailedDependency, errorResponse(err))
-		return false
+		return account, false
 	}
 
 	if account.Currency != currency {
 		err := fmt.Errorf("account [%d] currency mismatch: %s vs %s", accountID, account.Currency, currency)
 		ctx.JSON(http.StatusBadRequest, ApiResponseFunc(http.StatusNotFound, err.Error(), nil))
-			return false
+			return account, false
 	}
-	return true
+	return account, true
 }
 
 func (server *Server) sufficientBalance(ctx *gin.Context, accountID int64, transferAmount int64) bool {

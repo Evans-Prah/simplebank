@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	db "github.com/Evans-Prah/simplebank/db/sqlc"
+	"github.com/Evans-Prah/simplebank/token"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/lib/pq"
@@ -13,7 +14,6 @@ import (
 
 
 type createAccountPayload struct {
-	Owner    string `json:"owner" binding:"required"`
 	Currency string `json:"currency" binding:"required,currency"`
 }
 
@@ -26,8 +26,10 @@ func (server *Server) createAccount(ctx *gin.Context)  {
 		return
 	}
 
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.TokenPayload)
+
 	arg := db.CreateAccountParams {
-		Owner: payload.Owner,
+		Owner: authPayload.Username,
 		Currency: payload.Currency,
 		Balance: 0,
 	}
@@ -72,6 +74,12 @@ func (server *Server) getAccount(ctx *gin.Context)  {
 		return
 	}
 
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.TokenPayload)
+	if account.Owner != authPayload.Username {
+		ctx.JSON(http.StatusForbidden, ApiResponseFunc(http.StatusForbidden, "Account does not belong to authenticated user", nil))
+		return
+	}
+
 	ctx.JSON(http.StatusOK, ApiResponse {
 		Code: http.StatusOK,
 		Message: "Account details fetched successfully",
@@ -93,7 +101,10 @@ func (server *Server) getAccounts(ctx *gin.Context)  {
 		return
 	}
 
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.TokenPayload)
+
 	arg := db.ListAccountsParams{
+		Owner: authPayload.Username,
 		Limit: req.PageSize,
 		Offset: (req.Page - 1) * req.PageSize,
 	}
@@ -128,13 +139,19 @@ func (server *Server) updateAccount(ctx *gin.Context) {
 		return
 	}
 
-	_, err = server.store.GetAccount(ctx, id)
+	account, err := server.store.GetAccount(ctx, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, ApiResponseFunc(http.StatusNotFound, "Account not found, check and try again", nil))
 			return
 		}
 		ctx.JSON(http.StatusFailedDependency, errorResponse(err))
+		return
+	}
+
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.TokenPayload)
+	if account.Owner != authPayload.Username {
+		ctx.JSON(http.StatusForbidden, ApiResponseFunc(http.StatusForbidden, "Account does not belong to authenticated user", nil))
 		return
 	}
 
@@ -169,13 +186,19 @@ func (server *Server) deleteAccount(ctx *gin.Context) {
 		return
 	}
 
-	_, err = server.store.GetAccount(ctx, req.ID)
+	account, err := server.store.GetAccount(ctx, req.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			ctx.JSON(http.StatusNotFound, ApiResponseFunc(http.StatusNotFound, "Account not found, check and try again", nil))
 			return
 		}
 		ctx.JSON(http.StatusFailedDependency, errorResponse(err))
+		return
+	}
+
+	authPayload := ctx.MustGet(authorizationPayloadKey).(*token.TokenPayload)
+	if account.Owner != authPayload.Username {
+		ctx.JSON(http.StatusForbidden, ApiResponseFunc(http.StatusForbidden, "Account does not belong to authenticated user", nil))
 		return
 	}
 
