@@ -87,3 +87,61 @@ func (server *Server) createUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, ApiResponseFunc(http.StatusCreated, "User created successfully", createUserResponseDto))
 
 }
+
+
+type loginUserPayload struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required,min=6"`
+}
+
+type loginUserResponse struct {
+	Username string `json:"username"`
+	AccessToken string `json:"access_token"`
+}
+
+func (server *Server) loginUser(ctx *gin.Context) {
+	var payload loginUserPayload
+	err := ctx.ShouldBindJSON(&payload)
+	if err != nil {
+		validationErrors := formatValidationErrors(err.(validator.ValidationErrors))
+		ctx.JSON(http.StatusBadRequest, ApiResponseFunc(http.StatusBadRequest, "Validation Errors", nil, validationErrors))
+		return
+	}
+
+	existingUserArgs := db.GetUserByUsernameOrEmailParams{
+		Username: payload.Username,
+		Email:    payload.Username,
+	}
+
+	existingUser, err := server.store.GetUserByUsernameOrEmail(ctx, existingUserArgs)
+
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		ctx.JSON(http.StatusInternalServerError, ApiResponseFunc(http.StatusInternalServerError, "Something bad happened, try again later", nil, nil))
+		return
+	}
+
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		ctx.JSON(http.StatusNotFound, ApiResponseFunc(http.StatusNotFound, "Invalid credentials, check and try again", nil, nil))
+		return
+	}
+
+	err = util.CheckPassword(payload.Password, existingUser.HashedPassword)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, ApiResponseFunc(http.StatusUnauthorized, "Invalid credentials, check and try again", nil, nil))
+		return
+	}
+
+	accessToken, err := server.tokenMaker.CreateToken(existingUser.Username, server.config.AccessTokenDuration)
+	if err != nil {
+		ctx.JSON(http.StatusFailedDependency, ApiResponseFunc(http.StatusFailedDependency, "Something bad happened, try again later", nil, nil))
+		return
+	}
+
+	response := loginUserResponse {
+		Username: existingUser.Username,
+		AccessToken: accessToken,
+	}
+
+	ctx.JSON(http.StatusOK, ApiResponseFunc(http.StatusOK, "User login successful", response))
+
+}
