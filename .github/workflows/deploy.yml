@@ -41,10 +41,13 @@ jobs:
         REPOSITORY: simplebank
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t latest .
+        docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t $REGISTRY/$REPOSITORY:latest .
         docker push -a $REGISTRY/$REPOSITORY
 
     # Add the below step when you want to deploy the docker image from ECR to EKS cluster.
+    - name: Update Kube config
+      run: aws eks update-kubeconfig --name simple-bank --region u-north-1
+
     - name: Deploy image
       run: |
         kubectl apply -f eks/aws-auth.yml
