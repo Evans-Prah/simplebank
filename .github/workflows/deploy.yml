@@ -6,13 +6,19 @@ on:
 
 jobs:
 
-  build:
+  deploy:
     name: Build image
     runs-on: ubuntu-latest
 
     steps:
     - name: Check out code
       uses: actions/checkout@v3
+    # Add the below Kubectl step only when you want to do automatic deployment to Kubernetes with Github action.
+    - name: Install Kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.29.0' # default is latest stable
+      id: install
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -35,5 +41,14 @@ jobs:
         REPOSITORY: simplebank
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
-        docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+        docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t latest .
+        docker push -a $REGISTRY/$REPOSITORY
+
+    # Add the below step when you want to deploy the docker image from ECR to EKS cluster.
+    - name: Deploy image
+      run: |
+        kubectl apply -f eks/aws-auth.yml
+        kubectl apply -f eks/deployment.yml
+        kubectl apply -f eks/service.yml
+        kubectl apply -f eks/issuer.yml
+        kubectl apply -f eks/ingress.yml
