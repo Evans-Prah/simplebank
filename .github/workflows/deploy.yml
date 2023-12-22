@@ -46,7 +46,7 @@ jobs:
 
     # Add the below step when you want to deploy the docker image from ECR to EKS cluster.
     - name: Update Kube config
-      run: aws eks update-kubeconfig --name simple-bank --region u-north-1
+      run: aws eks update-kubeconfig --name simple-bank --region eu-north-1
 
     - name: Deploy image
       run: |
